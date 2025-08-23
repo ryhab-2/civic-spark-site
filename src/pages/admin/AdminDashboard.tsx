@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
-import { typedSupabase } from "@/lib/supabase-client";
+import { apiService } from "@/lib/api";
 import { FolderOpen, Calendar, Newspaper, Eye } from "lucide-react";
 
 interface Stats {
@@ -23,19 +22,8 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [projectsRes, eventsRes, calendarRes, visitsRes] = await Promise.all([
-          typedSupabase.from("projects").select("id", { count: "exact", head: true }),
-          typedSupabase.from("events").select("id", { count: "exact", head: true }),
-          typedSupabase.from("calendar").select("id", { count: "exact", head: true }),
-          typedSupabase.from("visits").select("id", { count: "exact", head: true }),
-        ]);
-
-        setStats({
-          projects: projectsRes.count || 0,
-          events: eventsRes.count || 0,
-          calendar: calendarRes.count || 0,
-          visits: visitsRes.count || 0,
-        });
+        const statsData = await apiService.getDashboardStats();
+        setStats(statsData);
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {

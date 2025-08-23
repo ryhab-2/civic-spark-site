@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,10 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import { typedSupabase } from "@/lib/supabase-client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { apiService } from "@/lib/api";
+import { Plus, Edit, Trash2, Loader2 } from "lucide-react";
 
 interface Project {
   id: string;
@@ -33,17 +32,13 @@ const ProjectsCrud = () => {
 
   const fetchProjects = async () => {
     try {
-      const { data, error } = await typedSupabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setProjects(data || []);
+      const response = await apiService.getProjects();
+      setProjects(response.data || []);
     } catch (error) {
+      console.error("Error fetching projects:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch projects",
+        description: "Failed to load projects",
         variant: "destructive",
       });
     } finally {
@@ -56,30 +51,27 @@ const ProjectsCrud = () => {
     
     try {
       if (editingProject) {
-        const { error } = await typedSupabase
-          .from("projects")
-          .update(formData)
-          .eq("id", editingProject.id);
-
-        if (error) throw error;
-        toast({ title: "Success", description: "Project updated successfully" });
+        await apiService.updateProject(editingProject.id, formData);
+        toast({
+          title: "Success",
+          description: "Project updated successfully",
+        });
       } else {
-        const { error } = await typedSupabase
-          .from("projects")
-          .insert([formData]);
-
-        if (error) throw error;
-        toast({ title: "Success", description: "Project created successfully" });
+        await apiService.createProject(formData);
+        toast({
+          title: "Success",
+          description: "Project created successfully",
+        });
       }
 
       setIsDialogOpen(false);
       setEditingProject(null);
       setFormData({ title: "", description: "" });
       fetchProjects();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to save project",
+        description: error.message || "An error occurred",
         variant: "destructive",
       });
     }
@@ -92,28 +84,31 @@ const ProjectsCrud = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this project?")) return;
-
-    try {
-      const { error } = await typedSupabase
-        .from("projects")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-      toast({ title: "Success", description: "Project deleted successfully" });
-      fetchProjects();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete project",
-        variant: "destructive",
-      });
+    if (window.confirm("Are you sure you want to delete this project?")) {
+      try {
+        await apiService.deleteProject(id);
+        toast({
+          title: "Success",
+          description: "Project deleted successfully",
+        });
+        
+        fetchProjects();
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "An error occurred",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center p-8">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (

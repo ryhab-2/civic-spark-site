@@ -1,14 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import { typedSupabase } from "@/lib/supabase-client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { apiService } from "@/lib/api";
+import { Plus, Edit, Trash2, Loader2, Calendar } from "lucide-react";
 
 interface CalendarItem {
   id: string;
@@ -33,17 +32,13 @@ const CalendarCrud = () => {
 
   const fetchCalendarItems = async () => {
     try {
-      const { data, error } = await typedSupabase
-        .from("calendar")
-        .select("*")
-        .order("start_date", { ascending: true });
-
-      if (error) throw error;
-      setCalendarItems(data || []);
+      const response = await apiService.getCalendarItems();
+      setCalendarItems(response.data || []);
     } catch (error) {
+      console.error("Error fetching calendar items:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch calendar items",
+        description: "Failed to load calendar items",
         variant: "destructive",
       });
     } finally {
@@ -56,30 +51,27 @@ const CalendarCrud = () => {
     
     try {
       if (editingItem) {
-        const { error } = await typedSupabase
-          .from("calendar")
-          .update(formData)
-          .eq("id", editingItem.id);
-
-        if (error) throw error;
-        toast({ title: "Success", description: "Calendar item updated successfully" });
+        await apiService.updateCalendarItem(editingItem.id, formData);
+        toast({
+          title: "Success",
+          description: "Calendar item updated successfully",
+        });
       } else {
-        const { error } = await typedSupabase
-          .from("calendar")
-          .insert([formData]);
-
-        if (error) throw error;
-        toast({ title: "Success", description: "Calendar item created successfully" });
+        await apiService.createCalendarItem(formData);
+        toast({
+          title: "Success",
+          description: "Calendar item created successfully",
+        });
       }
 
       setIsDialogOpen(false);
       setEditingItem(null);
       setFormData({ title: "", start_date: "", end_date: "" });
       fetchCalendarItems();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to save calendar item",
+        description: error.message || "An error occurred",
         variant: "destructive",
       });
     }
@@ -96,28 +88,31 @@ const CalendarCrud = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this calendar item?")) return;
-
-    try {
-      const { error } = await typedSupabase
-        .from("calendar")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-      toast({ title: "Success", description: "Calendar item deleted successfully" });
-      fetchCalendarItems();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete calendar item",
-        variant: "destructive",
-      });
+    if (window.confirm("Are you sure you want to delete this calendar item?")) {
+      try {
+        await apiService.deleteCalendarItem(id);
+        toast({
+          title: "Success",
+          description: "Calendar item deleted successfully",
+        });
+        
+        fetchCalendarItems();
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error.message || "An error occurred",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center p-8">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (

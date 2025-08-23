@@ -1,77 +1,27 @@
-import { useEffect, useState } from "react";
-import { useNavigate, Outlet } from "react-router-dom";
+import { useEffect } from "react";
+import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { 
-  LayoutDashboard, 
-  FolderOpen, 
-  Calendar, 
-  Newspaper, 
-  BarChart3, 
-  LogOut,
-  Users 
-} from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { typedSupabase } from "@/lib/supabase-client";
-import { useToast } from "@/hooks/use-toast";
-import type { User } from "@supabase/supabase-js";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2, LayoutDashboard, FolderOpen, Calendar, Newspaper, BarChart3, LogOut } from "lucide-react";
 
 const AdminLayout = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { admin, loading, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const location = useLocation();
 
   useEffect(() => {
-    // Check authentication status
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        navigate("/admin/login");
-        return;
-      }
-
-      // Verify admin privileges
-      const { data: adminUser } = await typedSupabase
-        .from("admin_users")
-        .select("*")
-        .eq("email", session.user.email)
-        .single();
-
-      if (!adminUser) {
-        toast({
-          title: "Access Denied",
-          description: "Admin privileges required",
-          variant: "destructive",
-        });
-        await supabase.auth.signOut();
-        navigate("/admin/login");
-        return;
-      }
-
-      setUser(session.user);
-      setLoading(false);
-    };
-
-    checkAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") {
-        navigate("/admin/login");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate, toast]);
+    if (!loading && !isAuthenticated) {
+      navigate('/admin/login');
+    }
+  }, [loading, isAuthenticated, navigate]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out",
-    });
-    navigate("/admin/login");
+    try {
+      await logout();
+      navigate('/admin/login');
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
   };
 
   const menuItems = [
@@ -85,20 +35,24 @@ const AdminLayout = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-muted/30 flex">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-card border-r border-border">
+      <div className="w-64 bg-card/95 backdrop-blur-sm border-r border-border shadow-elegant">
         <div className="p-6 border-b border-border">
-          <h1 className="text-xl font-bold gradient-text">Admin Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Welcome, {user?.email}
-          </p>
+          <h1 className="text-xl font-bold gradient-text">Admin Panel</h1>
+          <div className="text-xs text-muted-foreground mt-1">
+            {admin?.email}
+          </div>
         </div>
         
         <nav className="p-4 space-y-2">
@@ -106,10 +60,10 @@ const AdminLayout = () => {
             <Button
               key={item.path}
               variant={location.pathname === item.path ? "secondary" : "ghost"}
-              className="w-full justify-start"
+              className="w-full justify-start transition-all hover:translate-x-1"
               onClick={() => navigate(item.path)}
             >
-              <item.icon className="mr-2 h-4 w-4" />
+              <item.icon className="mr-3 h-4 w-4" />
               {item.label}
             </Button>
           ))}
@@ -118,10 +72,10 @@ const AdminLayout = () => {
         <div className="absolute bottom-4 left-4 right-4">
           <Button
             variant="ghost"
-            className="w-full justify-start text-destructive hover:text-destructive"
+            className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
             onClick={handleLogout}
           >
-            <LogOut className="mr-2 h-4 w-4" />
+            <LogOut className="mr-3 h-4 w-4" />
             Logout
           </Button>
         </div>
@@ -129,7 +83,7 @@ const AdminLayout = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <div className="p-6">
+        <div className="p-8">
           <Outlet />
         </div>
       </div>

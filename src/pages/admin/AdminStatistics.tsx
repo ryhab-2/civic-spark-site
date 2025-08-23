@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import { typedSupabase } from "@/lib/supabase-client";
-import { Eye, TrendingUp, Globe, Clock } from "lucide-react";
+import { apiService } from "@/lib/api";
+import { Eye, Users, Calendar, TrendingUp, Loader2 } from "lucide-react";
 
 interface Visit {
   id: string;
@@ -35,35 +34,16 @@ const AdminStatistics = () => {
 
   const fetchVisitsData = async () => {
     try {
-      // Fetch all visits
-      const { data: allVisits, error } = await typedSupabase
-        .from("visits")
-        .select("*")
-        .order("visited_at", { ascending: false })
-        .limit(100);
+      // Fetch recent visits and statistics
+      const [visitsResponse, statsResponse] = await Promise.all([
+        apiService.getVisits(),
+        apiService.getVisitStats()
+      ]);
 
-      if (error) throw error;
-
-      const visits = allVisits || [];
-      setVisits(visits);
-
-      // Calculate statistics
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-      const uniqueIPs = new Set(visits.map(v => v.ip_address)).size;
-      const todayVisits = visits.filter(v => new Date(v.visited_at) >= today).length;
-      const thisWeekVisits = visits.filter(v => new Date(v.visited_at) >= weekAgo).length;
-
-      setStats({
-        totalVisits: visits.length,
-        uniqueIPs,
-        todayVisits,
-        thisWeekVisits,
-      });
+      setVisits(visitsResponse.data || []);
+      setStats(statsResponse);
     } catch (error) {
-      console.error("Error fetching visits:", error);
+      console.error("Error fetching visits data:", error);
     } finally {
       setLoading(false);
     }
@@ -105,7 +85,7 @@ const AdminStatistics = () => {
     {
       title: "Unique Visitors",
       value: stats.uniqueIPs,
-      icon: Globe,
+      icon: Users,
       color: "text-accent",
     },
     {
@@ -117,7 +97,7 @@ const AdminStatistics = () => {
     {
       title: "This Week",
       value: stats.thisWeekVisits,
-      icon: Clock,
+      icon: Calendar,
       color: "text-secondary-foreground",
     },
   ];
